@@ -9,6 +9,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-terragis_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Bind to localhost 5432 so you can securely connect via SSH Tunnel in pgAdmin / DBeaver
+      - "127.0.0.1:5432:5432"
     networks:
       - terra_net
     healthcheck:
