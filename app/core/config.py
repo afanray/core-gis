@@ -1,9 +1,14 @@
-import os
 from typing import List, Union
 from pydantic import AnyHttpUrl, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"
+    )
+
     PROJECT_NAME: str = "Terra GIS Dashboard API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
@@ -16,6 +21,9 @@ class Settings(BaseSettings):
 
     # Database Configuration
     DATABASE_URL: str = "postgresql+asyncpg://postgres:1234567890@localhost:5436/be-terralium"
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = ""
+    POSTGRES_DB: str = "terragis_db"
 
     # CORS Origins
     BACKEND_CORS_ORIGINS: List[str] = [
@@ -54,10 +62,5 @@ class Settings(BaseSettings):
     # Deep Linking Configuration
     APP_WEB_BASE_URL: str = "https://dramaturgical-brigitte-nonvalidly.ngrok-free.dev"
     APP_DEEP_LINK_SCHEME: str = "terragis"
-
-
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
 
 settings = Settings()
