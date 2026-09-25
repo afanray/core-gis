@@ -44,25 +44,35 @@ tags_metadata = [
 from sqlalchemy import text
 import app.models  # ensure models are loaded
 
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize database tables & missing columns on startup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        migration_queries = [
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR DEFAULT 'trial';",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMP WITH TIME ZONE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_plan_id VARCHAR;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS purchase_token VARCHAR;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_type VARCHAR DEFAULT 'email';",
-        ]
-        for q in migration_queries:
+    try:
+        async with engine.begin() as conn:
+            # Use advisory lock to prevent race condition when multiple uvicorn workers start simultaneously
             try:
-                await conn.execute(text(q))
+                await conn.execute(text("SELECT pg_advisory_xact_lock(72459);"))
             except Exception:
                 pass
+            await conn.run_sync(Base.metadata.create_all)
+            migration_queries = [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR DEFAULT 'trial';",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMP WITH TIME ZONE;",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_plan_id VARCHAR;",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS purchase_token VARCHAR;",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_type VARCHAR DEFAULT 'email';",
+            ]
+            for q in migration_queries:
+                try:
+                    await conn.execute(text(q))
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Database initialization notice: {e}")
     yield
     # Cleanup on shutdown
     await engine.dispose()
