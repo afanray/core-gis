@@ -1,0 +1,114 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+bin/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff (jika pakai, abaikan jika murni FastAPI)
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff (abaikan jika murni FastAPI)
+instance/
+.webassets-cache
+
+# Scrapy stuff (abaikan jika murni FastAPI)
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+apidoc/
+
+# PyBuilder/SonarQube
+.target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+# For a library or package, you might want to ignore these files by default,
+# but not for an application where you want to ensure reproducibility
+# .python-version
+
+# pipenv
+# Supervisor, Pex, Poetry, Hatch
+Pipfile.lock
+poetry.lock  # Hapus tanda '#' jika Anda tidak ingin melacak lock file Poetry Anda
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs dan Editor (VS Code, PyCharm, dll)
+.vscode/
+.idea/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+
+# File Konfigurasi Sensitif & Environment Lokal
+.env
+*.env
+env.yaml
+
+# Database lokal atau SQLite
+*.db
+*.sqlite
