@@ -31,6 +31,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost:8000",
         "https://terra-gis.web.app",
+        "https://core.gis.terralium.tech",
+        "https://terralium.tech",
     ]
 
     # Google Play In-App Billing Configuration
@@ -60,7 +62,7 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: str = "Terra GIS Support"
 
     # Deep Linking Configuration
-    APP_WEB_BASE_URL: str = "https://dramaturgical-brigitte-nonvalidly.ngrok-free.dev"
+    APP_WEB_BASE_URL: str = "https://core.gis.terralium.tech"
     APP_DEEP_LINK_SCHEME: str = "terragis"
 
 settings = Settings()
