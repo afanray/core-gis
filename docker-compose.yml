@@ -32,7 +32,9 @@ services:
       # Bind to localhost 8000 so Nginx / Caddy on VPS can proxy securely
       - "127.0.0.1:8000:8000"
     volumes:
+      - ./app:/app/app
       - ./scripts:/app/scripts
+
     depends_on:
       db:
         condition: service_healthy
