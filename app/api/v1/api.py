@@ -8,7 +8,8 @@ from app.api.v1.endpoints import (
     health,
     webhooks,
     payments,
-    group
+    group,
+    user_subscriptions
 )
 
 api_router = APIRouter()
@@ -22,5 +23,6 @@ api_router.include_router(admins.router, prefix="/admins", tags=["Admins Managem
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks & Real-Time Developer Notifications"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments & Gateway"])
 api_router.include_router(group.router, prefix="/group", tags=["Subscription Group (Paket Bersama)"])
+api_router.include_router(user_subscriptions.router, prefix="/user-subscriptions", tags=["User Subscriptions"])
 
 

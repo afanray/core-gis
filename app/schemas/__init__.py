@@ -4,7 +4,7 @@ from app.schemas.transaction import TransactionOut, TransactionCreate, Transacti
 from app.schemas.analytics import AnalyticsOverviewOut, MonthlyTrendItem, ProductStatItem, StatusDistributionItem
 from app.schemas.product import ProductOut, ProductCreate, ProductUpdate
 from app.schemas.admin import AdminToggleActiveRequest, AdminCreateRequest
-from app.schemas.user_subscription import UserSubscriptionOut
+from app.schemas.user_subscription import UserSubscriptionOut, UserSubscriptionUpdateStatus, UserSubscriptionStatsOut
 from app.schemas.subscription_group import GroupInviteRequest, GroupDetailsOut, GroupMemberOut, UpgradePreviewResponse
 
 __all__ = [

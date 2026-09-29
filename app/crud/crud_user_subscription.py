@@ -1,15 +1,135 @@
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import desc, and_
+from sqlalchemy.orm import joinedload
+from sqlalchemy import desc, asc, and_, or_, func
 
 from app.models.user_subscription import UserSubscription
 
 class CRUDUserSubscription:
     async def get_by_id(self, db: AsyncSession, id: str) -> Optional[UserSubscription]:
-        result = await db.execute(select(UserSubscription).where(UserSubscription.id == id))
+        result = await db.execute(
+            select(UserSubscription)
+            .options(
+                joinedload(UserSubscription.user),
+                joinedload(UserSubscription.product)
+            )
+            .where(UserSubscription.id == id)
+        )
         return result.scalars().first()
+
+    async def get_filtered(
+        self,
+        db: AsyncSession,
+        q: Optional[str] = None,
+        status: Optional[str] = None,
+        product_id: Optional[str] = None,
+        billing_period: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 20,
+        sort_by: str = "created_at",
+        order: str = "desc"
+    ) -> Tuple[List[UserSubscription], int]:
+        from app.models.user import User
+        from app.models.product import Product
+
+        query = (
+            select(UserSubscription)
+            .outerjoin(User, UserSubscription.user_id == User.id)
+            .outerjoin(Product, UserSubscription.product_id == Product.id)
+            .options(
+                joinedload(UserSubscription.user),
+                joinedload(UserSubscription.product)
+            )
+        )
+        count_query = (
+            select(func.count(UserSubscription.id))
+            .outerjoin(User, UserSubscription.user_id == User.id)
+            .outerjoin(Product, UserSubscription.product_id == Product.id)
+        )
+
+        filters = []
+        if q:
+            search = f"%{q}%"
+            filters.append(
+                or_(
+                    User.name.ilike(search),
+                    User.email.ilike(search),
+                    UserSubscription.user_id.ilike(search),
+                    UserSubscription.id.ilike(search),
+                    Product.title.ilike(search),
+                    UserSubscription.product_id.ilike(search)
+                )
+            )
+        if status and status.lower() != "all":
+            filters.append(UserSubscription.status == status)
+        if product_id and product_id.lower() != "all":
+            filters.append(UserSubscription.product_id == product_id)
+        if billing_period and billing_period.lower() != "all":
+            filters.append(UserSubscription.billing_period == billing_period)
+
+        if filters:
+            query = query.where(*filters)
+            count_query = count_query.where(*filters)
+
+        # Sorting
+        sort_column = UserSubscription.created_at
+        if sort_by == "start_date":
+            sort_column = UserSubscription.start_date
+        elif sort_by == "end_date":
+            sort_column = UserSubscription.end_date
+        elif sort_by == "user_name":
+            sort_column = User.name
+        elif sort_by == "amount":
+            sort_column = UserSubscription.amount
+        elif sort_by == "status":
+            sort_column = UserSubscription.status
+
+        if order.lower() == "asc":
+            query = query.order_by(asc(sort_column))
+        else:
+            query = query.order_by(desc(sort_column))
+
+        total_result = await db.execute(count_query)
+        total = total_result.scalar_one_or_none() or 0
+
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
+        items = list(result.scalars().unique().all())
+
+        return items, total
+
+    async def get_stats(self, db: AsyncSession) -> dict:
+        total_res = await db.execute(select(func.count(UserSubscription.id)))
+        total = total_res.scalar_one_or_none() or 0
+
+        active_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "active"))
+        active = active_res.scalar_one_or_none() or 0
+
+        queued_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "queued"))
+        queued = queued_res.scalar_one_or_none() or 0
+
+        expired_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "expired"))
+        expired = expired_res.scalar_one_or_none() or 0
+
+        cancelled_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "cancelled"))
+        cancelled = cancelled_res.scalar_one_or_none() or 0
+
+        return {
+            "total": total,
+            "active": active,
+            "queued": queued,
+            "expired": expired,
+            "cancelled": cancelled
+        }
+
+    async def update_status(self, db: AsyncSession, sub: UserSubscription, new_status: str) -> UserSubscription:
+        sub.status = new_status
+        await db.commit()
+        await db.refresh(sub)
+        return sub
+
 
     async def get_by_user_id(self, db: AsyncSession, user_id: str) -> Optional[UserSubscription]:
         result = await db.execute(
@@ -99,9 +219,9 @@ class CRUDUserSubscription:
         db: AsyncSession,
         user_id: str,
         product_id: str,
-        transaction_id: Optional[str],
-        start_date: datetime,
-        end_date: datetime,
+        transaction_id: Optional[str] = None,
+        start_date: datetime = None,
+        end_date: datetime = None,
         billing_period: str = "monthly",
         amount: float = 0.0,
         currency: str = "IDR",
