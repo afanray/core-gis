@@ -21,9 +21,17 @@ from app.models.user_subscription import UserSubscription
 router = APIRouter()
 
 def format_user_subscription_out(sub: UserSubscription) -> UserSubscriptionOut:
+    from datetime import datetime, timezone
     user_name = sub.user.name if sub.user else "User"
     user_email = sub.user.email if sub.user else ""
     product_title = sub.product.title if sub.product else (sub.product_id or "Terra GIS Plan")
+
+    now = datetime.now(timezone.utc)
+    effective_status = sub.status
+    if sub.status == "active":
+        end_tz = sub.end_date if (sub.end_date and sub.end_date.tzinfo) else (sub.end_date.replace(tzinfo=timezone.utc) if sub.end_date else None)
+        if end_tz and end_tz <= now:
+            effective_status = "expired"
 
     return UserSubscriptionOut(
         id=sub.id,
@@ -36,15 +44,16 @@ def format_user_subscription_out(sub: UserSubscription) -> UserSubscriptionOut:
         group_id=sub.group_id,
         start_date=sub.start_date,
         end_date=sub.end_date,
-        status=sub.status,
+        status=effective_status,
         billing_period=sub.billing_period,
         amount=sub.amount,
         currency=sub.currency,
         payment_method=sub.payment_method,
         created_at=sub.created_at,
         updated_at=sub.updated_at,
-        is_active=(sub.status == "active")
+        is_active=(effective_status == "active")
     )
+
 
 @router.get("", response_model=PaginatedResponse[UserSubscriptionOut], summary="List Paginated User Subscriptions")
 async def list_user_subscriptions(

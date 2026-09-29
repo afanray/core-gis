@@ -19,6 +19,35 @@ class CRUDUserSubscription:
         )
         return result.scalars().first()
 
+    async def sync_expired_subscriptions(self, db: AsyncSession):
+        """
+        Automatically updates active subscriptions whose end_date has passed to 'expired',
+        and promotes any queued subscriptions for those users.
+        """
+        now = datetime.now(timezone.utc)
+        result = await db.execute(
+            select(UserSubscription).where(
+                and_(
+                    UserSubscription.status == "active",
+                    UserSubscription.end_date < now
+                )
+            )
+        )
+        expired_subs = list(result.scalars().all())
+        if expired_subs:
+            user_ids_to_check = set()
+            for sub in expired_subs:
+                sub.status = "expired"
+                user_ids_to_check.add(sub.user_id)
+            await db.commit()
+
+            # Check if any of these users have a queued subscription waiting to be activated
+            for u_id in user_ids_to_check:
+                try:
+                    await self.promote_queued_subscription(db, user_id=u_id)
+                except Exception:
+                    pass
+
     async def get_filtered(
         self,
         db: AsyncSession,
@@ -33,6 +62,10 @@ class CRUDUserSubscription:
     ) -> Tuple[List[UserSubscription], int]:
         from app.models.user import User
         from app.models.product import Product
+
+        # Sync expired subscriptions in background
+        await self.sync_expired_subscriptions(db)
+        now = datetime.now(timezone.utc)
 
         query = (
             select(UserSubscription)
@@ -63,7 +96,27 @@ class CRUDUserSubscription:
                 )
             )
         if status and status.lower() != "all":
-            filters.append(UserSubscription.status == status)
+            clean_status = status.strip().lower()
+            if clean_status == "active":
+                filters.append(
+                    and_(
+                        UserSubscription.status == "active",
+                        UserSubscription.end_date > now
+                    )
+                )
+            elif clean_status == "expired":
+                filters.append(
+                    or_(
+                        UserSubscription.status == "expired",
+                        and_(
+                            UserSubscription.status == "active",
+                            UserSubscription.end_date <= now
+                        )
+                    )
+                )
+            else:
+                filters.append(UserSubscription.status == status)
+
         if product_id and product_id.lower() != "all":
             filters.append(UserSubscription.product_id == product_id)
         if billing_period and billing_period.lower() != "all":
@@ -101,19 +154,43 @@ class CRUDUserSubscription:
         return items, total
 
     async def get_stats(self, db: AsyncSession) -> dict:
+        now = datetime.now(timezone.utc)
+        await self.sync_expired_subscriptions(db)
+
         total_res = await db.execute(select(func.count(UserSubscription.id)))
         total = total_res.scalar_one_or_none() or 0
 
-        active_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "active"))
+        active_res = await db.execute(
+            select(func.count(UserSubscription.id)).where(
+                and_(
+                    UserSubscription.status == "active",
+                    UserSubscription.end_date > now
+                )
+            )
+        )
         active = active_res.scalar_one_or_none() or 0
 
-        queued_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "queued"))
+        queued_res = await db.execute(
+            select(func.count(UserSubscription.id)).where(UserSubscription.status == "queued")
+        )
         queued = queued_res.scalar_one_or_none() or 0
 
-        expired_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "expired"))
+        expired_res = await db.execute(
+            select(func.count(UserSubscription.id)).where(
+                or_(
+                    UserSubscription.status == "expired",
+                    and_(
+                        UserSubscription.status == "active",
+                        UserSubscription.end_date <= now
+                    )
+                )
+            )
+        )
         expired = expired_res.scalar_one_or_none() or 0
 
-        cancelled_res = await db.execute(select(func.count(UserSubscription.id)).where(UserSubscription.status == "cancelled"))
+        cancelled_res = await db.execute(
+            select(func.count(UserSubscription.id)).where(UserSubscription.status == "cancelled")
+        )
         cancelled = cancelled_res.scalar_one_or_none() or 0
 
         return {
@@ -123,6 +200,7 @@ class CRUDUserSubscription:
             "expired": expired,
             "cancelled": cancelled
         }
+
 
     async def update_status(self, db: AsyncSession, sub: UserSubscription, new_status: str) -> UserSubscription:
         sub.status = new_status
