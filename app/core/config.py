@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
+    # API Documentation (Swagger /docs, ReDoc /redoc, openapi.json)
+    # Default False so production is secure. Set ENABLE_DOCS=True in .env for local development.
+    ENABLE_DOCS: bool = False
+    
     # JWT Auth Configuration
     SECRET_KEY: str = "TERRA_GIS_SECRET_KEY_SUPER_SECURE_JWT_2026_TOKEN_KEY"
     ALGORITHM: str = "HS256"

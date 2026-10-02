@@ -95,10 +95,10 @@ Welcome to the **Terra GIS Dashboard Backend API documentation**.
 * 🛠 **Standardized Error Responses**: All non-2xx responses deliver structured JSON error objects.
 * 🚀 **Async Processing**: Built with FastAPI, SQLAlchemy 2.0 Async, and Pydantic v2.
     """,
-    openapi_tags=tags_metadata,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    openapi_tags=tags_metadata if settings.ENABLE_DOCS else None,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.ENABLE_DOCS else None,
+    docs_url="/docs" if settings.ENABLE_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_DOCS else None,
     lifespan=lifespan
 )
 
@@ -122,8 +122,12 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {
-        "message": "Welcome to Terra GIS Dashboard API. Visit /docs for OpenAPI documentation.",
-        "docs": "/docs",
-        "redoc": "/redoc"
+    resp = {
+        "message": "Welcome to Terra GIS Dashboard API.",
+        "status": "online",
+        "version": settings.VERSION
     }
+    if settings.ENABLE_DOCS:
+        resp["docs"] = "/docs"
+        resp["redoc"] = "/redoc"
+    return resp

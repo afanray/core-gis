@@ -47,3 +47,16 @@ async def test_error_handler_405_method_not_allowed(client: AsyncClient):
     data = response.json()
     assert data["success"] is False
     assert data["error"]["code"] == "METHOD_NOT_ALLOWED"
+
+@pytest.mark.asyncio
+async def test_docs_disabled_by_default(client: AsyncClient):
+    # Verify that /docs, /redoc, and /openapi.json return 404 Not Found when ENABLE_DOCS is False
+    res_docs = await client.get("/docs")
+    assert res_docs.status_code == 404
+
+    res_redoc = await client.get("/redoc")
+    assert res_redoc.status_code == 404
+
+    res_openapi = await client.get("/api/v1/openapi.json")
+    assert res_openapi.status_code == 404
+
