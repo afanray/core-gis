@@ -169,5 +169,44 @@ async def test_email_login_prevented_for_google_registered_user(client: AsyncCli
     assert login_data["success"] is False
     assert "Akun ini terdaftar menggunakan Google SSO" in login_data["error"]["message"]
 
+@pytest.mark.asyncio
+async def test_login_captures_real_device_info_headers(client: AsyncClient, monkeypatch):
+    called = []
+
+    async def mock_send_login_alert(to_email, user_name, ip_address=None, user_agent=None, **kwargs):
+        called.append({"to_email": to_email, "ua": user_agent})
+        return True
+
+    from app.services.email_service import email_service
+    monkeypatch.setattr(email_service, "send_login_alert", mock_send_login_alert)
+
+    # 1. Test explicit X-Device-Info header
+    res1 = await client.post(
+        "/api/v1/auth/google",
+        json={"email": "samsung_user@gmail.com", "name": "Samsung User"},
+        headers={"x-device-info": "Samsung Galaxy S23 Ultra (Android 14)"}
+    )
+    assert res1.status_code == 200
+    assert called[-1]["ua"] == "Samsung Galaxy S23 Ultra (Android 14)"
+
+    # 2. Test TerraGIS custom User-Agent format
+    res2 = await client.post(
+        "/api/v1/auth/google",
+        json={"email": "iphone_user@gmail.com", "name": "iPhone User"},
+        headers={"user-agent": "TerraGIS/1.0.1 (Apple iPhone 15 Pro (iOS 17.4))"}
+    )
+    assert res2.status_code == 200
+    assert called[-1]["ua"] == "Apple iPhone 15 Pro (iOS 17.4)"
+
+    # 3. Test generic legacy Dart/3.11 User-Agent is sanitized
+    res3 = await client.post(
+        "/api/v1/auth/google",
+        json={"email": "dart_user@gmail.com", "name": "Dart User"},
+        headers={"user-agent": "Dart/3.11 (dart:io)"}
+    )
+    assert res3.status_code == 200
+    assert called[-1]["ua"] == "Perangkat Mobile (Terra GIS App)"
+
+
 
 

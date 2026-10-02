@@ -1,3 +1,4 @@
+import re
 import uuid
 import httpx
 import asyncio
@@ -44,6 +45,74 @@ from app.models.user import User
 router = APIRouter()
 
 
+def get_device_from_request(request: Request) -> str:
+    """
+    Intelligently extracts and formats human-readable device info.
+    Prevents raw 'Dart/3.11 (dart:io)' from being displayed to users.
+    Prioritizes explicit client headers (X-Device-Info), then parses User-Agent.
+    """
+    for header_name in ("x-device-info", "x-device-name", "x-device-model"):
+        val = request.headers.get(header_name)
+        if val and val.strip():
+            return val.strip()
+
+    raw_ua = request.headers.get("user-agent", "").strip()
+    if not raw_ua:
+        return "Perangkat Tidak Diketahui"
+
+    # Check custom app User-Agent format: "TerraGIS/1.0.1 (Samsung SM-S918B (Android 14))"
+    if "terragis" in raw_ua.lower() and "(" in raw_ua and ")" in raw_ua:
+        start_idx = raw_ua.find("(")
+        end_idx = raw_ua.rfind(")")
+        if start_idx != -1 and end_idx > start_idx:
+            device_inside = raw_ua[start_idx + 1:end_idx].strip()
+            if device_inside:
+                return device_inside
+
+    # If raw User-Agent is raw Dart runtime (e.g. "Dart/3.11 (dart:io)")
+    if "dart:io" in raw_ua.lower() or raw_ua.lower().startswith("dart/"):
+        return "Perangkat Mobile (Terra GIS App)"
+
+    # Parse common web / mobile browser User-Agents
+    ua_lower = raw_ua.lower()
+    os_name = ""
+    if "android" in ua_lower:
+        model_match = re.search(r"android\s+[\d\.]+;\s*([^;)]+)", raw_ua, re.IGNORECASE)
+        if model_match:
+            os_name = f"Android ({model_match.group(1).strip()})"
+        else:
+            os_name = "Perangkat Android"
+    elif "iphone" in ua_lower:
+        os_name = "Apple iPhone (iOS)"
+    elif "ipad" in ua_lower:
+        os_name = "Apple iPad (iPadOS)"
+    elif "macintosh" in ua_lower or "mac os x" in ua_lower:
+        os_name = "Apple Mac"
+    elif "windows" in ua_lower:
+        os_name = "PC Windows"
+    elif "linux" in ua_lower:
+        os_name = "Linux"
+
+    browser_name = ""
+    if "chrome" in ua_lower and "safari" in ua_lower and "edg" not in ua_lower:
+        browser_name = "Google Chrome"
+    elif "firefox" in ua_lower:
+        browser_name = "Mozilla Firefox"
+    elif "safari" in ua_lower and "chrome" not in ua_lower:
+        browser_name = "Apple Safari"
+    elif "edg" in ua_lower:
+        browser_name = "Microsoft Edge"
+
+    if browser_name and os_name:
+        return f"{browser_name} ({os_name})"
+    elif os_name:
+        return os_name
+    elif browser_name:
+        return browser_name
+
+    return raw_ua
+
+
 @router.post("/login", response_model=BaseResponse[Token], summary="Admin JWT Login (JSON)")
 async def login_json(
     login_data: LoginRequest,
@@ -77,7 +146,7 @@ async def login_json(
         client_ip = client_ip.split(",")[0].strip()
     else:
         client_ip = request.client.host if request.client else "Unknown IP"
-    user_agent_str = request.headers.get("user-agent", "Unknown Device")
+    user_agent_str = get_device_from_request(request)
 
     # Record active login history session
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
@@ -145,7 +214,7 @@ async def login_oauth2_form(
         login_type="admin",
         expires_at=expires_at,
         ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent")
+        user_agent=get_device_from_request(request)
     )
 
     return Token(
@@ -185,7 +254,7 @@ async def refresh_token(
         login_type=getattr(user, "login_type", "email") or "email",
         expires_at=expires_at,
         ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent")
+        user_agent=get_device_from_request(request)
     )
 
     return BaseResponse(
@@ -316,7 +385,7 @@ async def register_user(
         login_type="email",
         expires_at=expires_at,
         ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent")
+        user_agent=get_device_from_request(request)
     )
 
     return BaseResponse(
@@ -362,7 +431,7 @@ async def login_google(
         client_ip = client_ip.split(",")[0].strip()
     else:
         client_ip = request.client.host if request.client else "Unknown IP"
-    user_agent_str = request.headers.get("user-agent", "Unknown Device")
+    user_agent_str = get_device_from_request(request)
 
     user = await crud_user.get_by_email(db, email=email)
     if user:

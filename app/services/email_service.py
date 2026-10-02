@@ -246,6 +246,10 @@ class EmailService:
             if "google" in login_method.lower() else
             f'<span style="background:#f1f3f4; color:#3c4043; font-weight:600; padding:3px 8px; border-radius:4px; font-size:12px;">{login_method}</span>'
         )
+        display_device = user_agent or "Aplikasi Mobile / Web"
+        if "dart:io" in display_device.lower() or display_device.lower().startswith("dart/"):
+            display_device = "Perangkat Mobile (Terra GIS App)"
+
         content_html = f"""
             <h2 style="margin-top:0; color:#0d6efd; font-size:18px;">Notifikasi Masuk (Login) Baru</h2>
             <p style="font-size:14px; line-height:1.6; color:#495057;">
@@ -266,14 +270,14 @@ class EmailService:
                 </tr>
                 <tr>
                     <td class="label">Perangkat:</td>
-                    <td>{user_agent or 'Aplikasi Mobile / Web'}</td>
+                    <td><strong>{display_device}</strong></td>
                 </tr>
             </table>
             <div class="alert-box">
                 🛡️ Jika ini memang Anda, tidak ada tindakan lanjutan yang perlu dilakukan. Namun jika Anda tidak merasa melakukan aktivitas masuk ini, segera periksa keamanan akun Anda atau hubungi admin di <strong>sdev67035@gmail.com</strong>.
             </div>
         """
-        text_body = f"Halo {user_name},\n\nAkun Terra GIS Anda baru saja masuk ({login_method}) pada {formatted_time} dari IP {ip_address or '-'}.\nJika ini bukan Anda, segera amankan akun Anda.\n\nTim Terra GIS"
+        text_body = f"Halo {user_name},\n\nAkun Terra GIS Anda baru saja masuk ({login_method}) pada {formatted_time} menggunakan perangkat {display_device} dari IP {ip_address or '-'}.\nJika ini bukan Anda, segera amankan akun Anda.\n\nTim Terra GIS"
         html = self._render_base_template("Notifikasi Masuk Baru", content_html)
         return await self.send_email(to_email, subject, html, text_body)
 
