@@ -76,3 +76,47 @@ async def test_resume_midtrans_payment_and_history(client: AsyncClient, auth_hea
     assert resume_data["token"] == token
     assert "vtweb" in resume_data["redirect_url"]
 
+@pytest.mark.asyncio
+async def test_active_pending_transaction_and_validation(client: AsyncClient, auth_headers: dict):
+    # 1. Create a pending snap transaction
+    create_res = await client.post(
+        "/api/v1/payments/create-midtrans-snap",
+        json={"product_id": "support_10000"},
+        headers=auth_headers
+    )
+    assert create_res.status_code == 201
+    invoice_number = create_res.json()["data"]["invoice_number"]
+
+    # 2. Check GET /api/v1/payments/active-pending returns the pending transaction
+    active_res = await client.get("/api/v1/payments/active-pending", headers=auth_headers)
+    assert active_res.status_code == 200
+    active_data = active_res.json()["data"]
+    assert active_data is not None
+    assert active_data["invoice_number"] == invoice_number
+    assert active_data["status"] == "pending"
+
+    # 3. Simulate settlement
+    webhook_payload = {
+        "order_id": invoice_number,
+        "status_code": "200",
+        "gross_amount": "10000.00",
+        "signature_key": "mock_signature_key",
+        "transaction_status": "settlement",
+        "fraud_status": "accept"
+    }
+    await client.post("/api/v1/webhooks/midtrans", json=webhook_payload)
+
+    # 4. Now GET /api/v1/payments/active-pending should return None
+    active_res_2 = await client.get("/api/v1/payments/active-pending", headers=auth_headers)
+    assert active_res_2.status_code == 200
+    assert active_res_2.json()["data"] is None
+
+    # 5. Resuming settled transaction must fail (user cannot pay non-pending transaction)
+    resume_fail = await client.post(
+        f"/api/v1/payments/midtrans/resume/{invoice_number}",
+        headers=auth_headers
+    )
+    assert resume_fail.status_code == 422
+    assert "hanya dapat melanjutkan pembayaran untuk transaksi yang berstatus pending" in resume_fail.json()["error"]["message"]
+
+

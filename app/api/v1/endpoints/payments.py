@@ -603,6 +603,44 @@ async def get_my_transactions(
         message="Transaction history retrieved successfully"
     )
 
+@router.get("/active-pending", response_model=BaseResponse[Optional[dict]], summary="Get Active Pending Payment Transaction")
+async def get_active_pending_transaction(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    """
+    Returns the most recent active transaction with 'pending' status for the current user,
+    or None if no pending transaction exists.
+    """
+    txs = await crud_transaction.get_by_user_email(db, user_email=current_user.email)
+    base_snap = "https://app.midtrans.com/snap/v2/vtweb/" if settings.MIDTRANS_IS_PRODUCTION else "https://app.sandbox.midtrans.com/snap/v2/vtweb/"
+
+    for tx in txs:
+        if tx.status and tx.status.lower() == "pending":
+            token = tx.purchase_token
+            redirect_url = f"{base_snap}{token}" if token else None
+            return BaseResponse(
+                data={
+                    "id": tx.id,
+                    "invoice_number": tx.id,
+                    "product_id": tx.product_id,
+                    "product_name": tx.name,
+                    "amount": tx.amount,
+                    "currency": tx.currency or "IDR",
+                    "status": "pending",
+                    "payment_method": "Midtrans Gateway",
+                    "snap_token": token,
+                    "redirect_url": redirect_url,
+                    "created_at": tx.created_at.isoformat() if tx.created_at else None,
+                },
+                message="Transaksi pending aktif ditemukan"
+            )
+
+    return BaseResponse(
+        data=None,
+        message="Tidak ada transaksi pending"
+    )
+
 @router.post("/midtrans/resume/{invoice_number}", response_model=BaseResponse[MidtransSnapResponse], summary="Resume Pending Midtrans Snap Payment")
 async def resume_midtrans_payment(
     invoice_number: str,
@@ -618,7 +656,9 @@ async def resume_midtrans_payment(
         raise NotFoundException(message=f"Transaksi dengan nomor invoice '{invoice_number}' tidak ditemukan.")
 
     if tx.status.lower() != "pending":
-        raise ValidationException(message=f"Transaksi ini berstatus '{tx.status}' dan tidak dapat dilanjutkan.")
+        raise ValidationException(
+            message=f"Transaksi '{invoice_number}' berstatus '{tx.status}'. Anda hanya dapat melanjutkan pembayaran untuk transaksi yang berstatus pending."
+        )
 
     token = tx.purchase_token
     redirect_url = ""
