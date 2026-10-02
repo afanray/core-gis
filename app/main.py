@@ -58,6 +58,8 @@ async def lifespan(app: FastAPI):
                 pass
             await conn.run_sync(Base.metadata.create_all)
             migration_queries = [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified BOOLEAN DEFAULT TRUE;",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR DEFAULT 'trial';",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;",
@@ -65,6 +67,7 @@ async def lifespan(app: FastAPI):
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_plan_id VARCHAR;",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS purchase_token VARCHAR;",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_type VARCHAR DEFAULT 'email';",
+                "UPDATE users SET is_active = TRUE WHERE is_active IS NULL;",
             ]
             for q in migration_queries:
                 try:

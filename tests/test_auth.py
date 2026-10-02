@@ -129,4 +129,45 @@ async def test_google_login_triggers_email_alert(client: AsyncClient, monkeypatc
     assert called[0]["ua"] == "Flutter Test Agent"
     assert called[0]["kwargs"]["login_method"] == "Google SSO"
 
+@pytest.mark.asyncio
+async def test_google_login_prevented_for_email_registered_user(client: AsyncClient):
+    # 1. Register with email/password (even a @gmail.com address)
+    email = "surveyor.field@gmail.com"
+    reg_res = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "name": "Surveyor Field", "password": "Password123!"}
+    )
+    assert reg_res.status_code == 201
+
+    # 2. Attempt to bypass login using Google SSO with the same email
+    sso_res = await client.post(
+        "/api/v1/auth/google",
+        json={"email": email, "name": "Surveyor Field"}
+    )
+    assert sso_res.status_code == 401
+    sso_data = sso_res.json()
+    assert sso_data["success"] is False
+    assert "Akun ini terdaftar menggunakan Email & Kata Sandi" in sso_data["error"]["message"]
+
+@pytest.mark.asyncio
+async def test_email_login_prevented_for_google_registered_user(client: AsyncClient):
+    # 1. Register via Google SSO
+    email = "google_only_user@gmail.com"
+    sso_res = await client.post(
+        "/api/v1/auth/google",
+        json={"email": email, "name": "Google Native User"}
+    )
+    assert sso_res.status_code == 200
+
+    # 2. Attempt to login via email/password form
+    login_res = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "SomePassword123!"}
+    )
+    assert login_res.status_code == 401
+    login_data = login_res.json()
+    assert login_data["success"] is False
+    assert "Akun ini terdaftar menggunakan Google SSO" in login_data["error"]["message"]
+
+
 

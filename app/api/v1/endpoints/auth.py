@@ -55,10 +55,15 @@ async def login_json(
     Authenticate administrator credentials using JSON body.
     """
     user = await crud_user.get_by_email(db, email=login_data.email)
+    if user and getattr(user, "login_type", "email") == "google":
+        raise AuthenticationException(
+            message="Akun ini terdaftar menggunakan Google SSO. Silakan masuk menggunakan tombol Login dengan Google."
+        )
+
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise AuthenticationException(message="Incorrect email or password.")
 
-    if not user.is_active:
+    if user.is_active is False:
         raise AuthenticationException(message="User account is deactivated.")
 
     # Update last login timestamp
@@ -361,16 +366,15 @@ async def login_google(
 
     user = await crud_user.get_by_email(db, email=email)
     if user:
-        # Validate user active status
-        if not user.is_active:
-            raise AuthenticationException(message="Akun pengguna telah dinonaktifkan.")
+        # Strictly separate login access: if registered with email/password, prevent bypass via Google SSO!
+        if getattr(user, "login_type", "email") == "email":
+            raise AuthenticationException(
+                message="Akun ini terdaftar menggunakan Email & Kata Sandi. Silakan masuk menggunakan Email dan Kata Sandi Anda, tidak dapat masuk menggunakan Google SSO."
+            )
 
-        # Sync login_type to google if previously registered
-        if getattr(user, "login_type", "email") != "google":
-            user.login_type = "google"
-            user.is_email_verified = True
-            await db.commit()
-            await db.refresh(user)
+        # Validate user active status safely (only if explicitly False)
+        if user.is_active is False:
+            raise AuthenticationException(message="Akun pengguna telah dinonaktifkan.")
 
         await crud_user.update_last_login(db, user_id=user.id)
         await check_and_apply_group_membership(db, user)

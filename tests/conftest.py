@@ -33,6 +33,12 @@ def event_loop():
     yield loop
     loop.close()
 
+@pytest.fixture(autouse=True)
+def mock_smtp_sender(monkeypatch):
+    from app.services.email_service import email_service
+    monkeypatch.setattr(email_service, "_send_sync", lambda *args, **kwargs: True)
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with test_engine.begin() as conn:
